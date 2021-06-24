@@ -1,9 +1,9 @@
-# EduRec: Recommending Concepts in MOOC
+# EduRec: Recommending Video Topics in MOOC
 
 This is our TensorFlow implementation for the paper:
 
 [Shalini Pandey](https://www.linkedin.com/in/shalini-pandey-91844958), [Abinash Sinha](https://www.linkedin.com/in/abinashsinha330),
-[Jaideep Srivastava](https://cse.umn.edu/cs/jaideep-srivastava) (2021). *[EduRec: Recommending Concepts in MOOC.]()* '21
+[Jaideep Srivastava](https://cse.umn.edu/cs/jaideep-srivastava) (2021). *[EduRec: Recommending Video Topics in MOOC.]()* '21
 
 Please cite our paper if you use the code or datasets.
 
