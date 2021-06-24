@@ -1,9 +1,9 @@
-# EduRec: Recommending Concepts
+# EduRec: Recommending Concepts in MOOC
 
 This is our TensorFlow implementation for the paper:
 
 [Abinash Sinha](https://www.linkedin.com/in/abinashsinha330), [Shalini Pandey](https://www.linkedin.com/in/shalini-pandey-91844958), 
-[Jaideep Srivastava](https://cse.umn.edu/cs/jaideep-srivastava) (2021). *[EduRec: Recommending Concepts.](https://cseweb.ucsd.edu/~jmcauley/pdfs/icdm18.pdf)* '21
+[Jaideep Srivastava](https://cse.umn.edu/cs/jaideep-srivastava) (2021). *[EduRec: Recommending Concepts in MOOC.](https://cseweb.ucsd.edu/~jmcauley/pdfs/icdm18.pdf)* '21
 
 Please cite our paper if you use the code or datasets.
 
