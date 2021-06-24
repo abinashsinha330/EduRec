@@ -7,7 +7,7 @@ This is our TensorFlow implementation for the paper:
 
 Please cite our paper if you use the code or datasets.
 
-The code is tested under a Linux desktop (w/ GTX 1080 Ti GPU) with TensorFlow 2.5.0 and Python 3.6.7.
+The code is tested under a Linux desktop with TensorFlow 2.5.0 and Python 3.6.7.
 
 
 ## Datasets
