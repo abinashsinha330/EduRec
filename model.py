@@ -1,5 +1,5 @@
 """
-Script to lay down the architecture of the model used
+
 """
 
 import tensorflow as tf
@@ -186,29 +186,17 @@ class SASEncoder(tf.keras.layers.Layer):
         return x  # (batch_size, input_seq_len, d_model)
 
 
-def intention_clustering():
-    pass
-
-
-def intention_weighting():
-    pass
-
-
-def intention_aggr():
-    pass
-
-
 class BiasLayer(tf.keras.layers.Layer):
-    def __init__(self, d_model):
+    def __init__(self, d_model, initializer):
         super(BiasLayer, self).__init__()
 
         self.bias = self.add_weight('bias',
                                     shape=d_model,
-                                    initializer='zeros',
+                                    initializer=initializer,
                                     trainable=True)
 
     def call(self, x):
-        return x + self.bias
+        return tf.nn.bias_add(x, self.bias)
 
 
 class DisentangledSeqEncoder(tf.keras.layers.Layer):
@@ -216,24 +204,70 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
                  maximum_position_encoding, rate=0.1):
         super(DisentangledSeqEncoder, self).__init__()
 
+        self.d_model = d_model
+
         self.sas_encoder = SASEncoder(num_layers, d_model, num_heads, dff, input_vocab_size,
                                       maximum_position_encoding, rate)
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm4 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.layernorm5 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
 
         self.w = tf.keras.layers.Dense(d_model)
 
-        self.b = BiasLayer(d_model)
-        self.b_ = BiasLayer(d_model)
-        self.alpha = BiasLayer(d_model)
+        self.b = BiasLayer(d_model, 'zeros')
+        self.b_ = BiasLayer(d_model, 'zeros')
+        self.alpha = BiasLayer(d_model, 'zeros')
 
-        self.beta = BiasLayer(d_model)
+        self.beta = BiasLayer(d_model,
+                              tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
+                                  tf.cast(d_model, tf.float32))))
 
+    def call(self, x, prototypes, training, mask):
 
-def call(self, x, training, mask):
+        out = self.sas_encoder(x, training, mask)
+
+        # function to perform
+        attention_weights_p_k_i = self.intention_clustering(out, prototypes)
+
+        attention_weights_p_i = self.intention_weighting(x)
+
+        seq_len = tf.shape(x)[1]
+
+        # adding embedding and position encoding.
+        x = self.embedding(x)  # (batch_size, input_seq_len, d_model)
+        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        x += self.pos_encoding[:, :seq_len, :]
+
+        x = self.dropout(x, training=training)
+
+        for i in range(self.num_layers):
+            x = self.enc_layers[i](x, training, mask)
 
         return x  # (batch_size, input_seq_len, d_model)
+
+
+    def intention_clustering(self, input, prototypes):
+        """
+        Method to measure how likely the primary intention at position i
+        is related with kth latent category
+        :param input:
+        :param prototypes:
+        :return:
+        """
+
+        input = self.layernorm1(input)
+        prototypes = self.layernorm2(prototypes)
+        cosine_similarity = tf.matmul(input, prototypes, transpose_b=True) / tf.math.sqrt(
+                                  tf.cast(self.d_model, tf.float32))
+
+
+    def intention_weighting(self, input):
+        
+
+    def intention_aggr(self):
+        pass
+
+
 
