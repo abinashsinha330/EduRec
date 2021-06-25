@@ -232,12 +232,21 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
         self.alphas = tf.concat(self.alphas, 1)
         self.alphas = tf.transpose(self.alphas)
 
-        self.beta_input_seq = BiasLayer(d_model,
+        self.beta_input_seq = [BiasLayer(d_model,
                                         tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
                                             tf.cast(d_model, tf.float32))))
-        self.beta_label_seq = BiasLayer(d_model,
+                               for _ in range(num_intents)
+                               ]
+        self.beta_input_seq = tf.concat(self.beta_input_seq, 1)
+        self.beta_input_seq = tf.transpose(self.beta_input_seq)
+
+        self.beta_label_seq = [BiasLayer(d_model,
                                         tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
                                             tf.cast(d_model, tf.float32))))
+                               for _ in range(num_intents)
+                               ]
+        self.beta_label_seq = tf.concat(self.beta_label_seq, 1)
+        self.beta_label_seq = tf.transpose(self.beta_label_seq)
 
     def call(self, x, training, mask):
 
@@ -299,5 +308,23 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
 
         return all_p_i
 
-    def intention_aggr(self):
+    def intention_aggr(self, attention_weights_p_k_i, attention_weights_p_i, z):
+        """
+        Method to aggregate intentions collected at all positions according
+        to both kinds of attention weights
+        :param attention_weights_p_k_i:
+        :param attention_weights_p_i:
+        :param z:
+        :return:
+        """
+        num_intents = tf.shape(attention_weights_p_k_i)[2]
+        all_p_i = tf.tile(tf.expand_dims(attention_weights_p_i, 0), [1, 1, num_intents])
+        attention_weights = tf.math.multiply(attention_weights_p_k_i, all_p_i)
 
+        out = tf.matmul(attention_weights, z, transpose_a=True)
+        if self.is_input:
+            encoded = self.layernorm5(self.beta_input_seq + out)
+        else:
+            encoded = self.layernorm5(self.beta_label_seq + out)
+
+        return encoded
