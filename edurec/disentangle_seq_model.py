@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from sasrec_model import SASEncoder
 
+
 class BiasLayer(tf.keras.layers.Layer):
     def __init__(self, d_model, initializer):
         super(BiasLayer, self).__init__()
