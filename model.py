@@ -200,17 +200,21 @@ class BiasLayer(tf.keras.layers.Layer):
 
 
 class DisentangledSeqEncoder(tf.keras.layers.Layer):
-    def __init__(self, num_intents, num_layers, max_len, d_model, num_heads, dff, input_vocab_size,
+    def __init__(self, is_input, num_intents, num_layers, max_len, d_model, num_heads, dff, input_vocab_size,
                  maximum_position_encoding, rate=0.1):
         super(DisentangledSeqEncoder, self).__init__()
 
         self.d_model = d_model
+
+        self.is_input = is_input
 
         self.sas_encoder = SASEncoder(num_layers, d_model, num_heads, dff, input_vocab_size,
                                       maximum_position_encoding, rate)
 
         # prototypical intention vector for each intention
         self.prototypes = [BiasLayer(d_model, 'zeros') for _ in range(num_intents)]
+        self.prototypes = tf.concat(self.prototypes, 1)
+        self.prototypes = tf.transpose(self.prototypes)
 
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -220,74 +224,80 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
 
         self.w = tf.keras.layers.Dense(d_model)
 
-        self.b = BiasLayer(d_model, 'zeros')
+        # self.b = BiasLayer(d_model, 'zeros')
         self.b_ = BiasLayer(d_model, 'zeros')
 
         # individual alpha for each position
         self.alphas = [BiasLayer(d_model, 'zeros') for _ in range(max_len)]
+        self.alphas = tf.concat(self.alphas, 1)
+        self.alphas = tf.transpose(self.alphas)
 
-        self.beta = BiasLayer(d_model,
-                              tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
-                                  tf.cast(d_model, tf.float32))))
-
+        self.beta_input_seq = BiasLayer(d_model,
+                                        tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
+                                            tf.cast(d_model, tf.float32))))
+        self.beta_label_seq = BiasLayer(d_model,
+                                        tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
+                                            tf.cast(d_model, tf.float32))))
 
     def call(self, x, training, mask):
 
-        out = self.sas_encoder(x, training, mask)
+        z = self.sas_encoder(x, training, mask)
 
         # function to perform
-        attention_weights_p_k_i = self.intention_clustering(out)
+        attention_weights_p_k_i = self.intention_clustering(x)
 
-        attention_weights_p_i = self.intention_weighting(out)
+        attention_weights_p_i = self.intention_weighting(x)
 
-        seq_len = tf.shape(x)[1]
+        encoded = self.intention_aggr(attention_weights_p_k_i, attention_weights_p_i, z)
 
-        # adding embedding and position encoding.
-        x = self.embedding(x)  # (batch_size, input_seq_len, d_model)
-        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
-        x += self.pos_encoding[:, :seq_len, :]
+        return encoded  # (batch_size, input_seq_len, d_model)
 
-        x = self.dropout(x, training=training)
-
-        for i in range(self.num_layers):
-            x = self.enc_layers[i](x, training, mask)
-
-        return x  # (batch_size, input_seq_len, d_model)
-
-    def intention_clustering(self, input):
+    def intention_clustering(self, z):
         """
         Method to measure how likely the primary intention at position i
         is related with kth latent category
-        :param input:
+        :param z:
         :param prototypes:
         :return:
         """
-        input = self.layernorm1(input)
+        z = self.layernorm1(z)
         prototypes = self.layernorm2(self.prototypes)
-        prototypes_t = tf.tile(tf.expand_dims(prototypes,0), [tf.shape(input)[0],1,1])
-        cosine_similarity_mat = tf.matmul(input, prototypes_t, transpose_b=True) / tf.math.sqrt(
+        prototypes_t = tf.tile(tf.expand_dims(prototypes,0), [tf.shape(z)[0], 1, 1])
+        cosine_similarity_mat = tf.matmul(z, prototypes_t, transpose_b=True) / tf.math.sqrt(
                                   tf.cast(self.d_model, tf.float32))
 
         exp = tf.math.exp(cosine_similarity_mat)
 
-        sum_across_k = tf.reduce_sum(exp, axis=2)
+        sum_across_k = tf.reduce_sum(exp, axis=1)
         all_p_k_i = exp / tf.reshape(sum_across_k, (-1, -1, 1))
 
         return all_p_k_i
 
-    def intention_weighting(self, input):
+    def intention_weighting(self, z):
         """
         Method to measure how likely primary intention at position i
         is important for predicting user's future intentions
-        :param input:
+        :param z:
         :return:
         """
-        out =
-        k_ = self.layernorm3(input)
+        alphas = tf.tile(tf.expand_dims(self.alphas, 0), [tf.shape(z)[0], 1, 1])
+        out = alphas + z
+        k_ = self.layernorm3(out)
+        k = k_ + self.w(k_)
+        alpha_t = tf.gather(alphas, indices=[-1], axis=1)
+        input_t = tf.gather(z, indices=[-1], axis=1)
+        b_ = tf.tile(tf.expand_dims(self.b_, 0), [tf.shape(z)[0], 1, 1])
+        q = self.layernorm4(alpha_t + input_t + self.b_)
 
-        return None
+        cosine_similarity_mat = tf.matmul(k, q, transpose_b=True) / tf.math.sqrt(
+            tf.cast(self.d_model, tf.float32))
 
+        exp = tf.math.exp(cosine_similarity_mat)
 
+        sum_across_t = tf.reduce_sum(exp, axis=1)
+        all_p_i = exp / tf.reshape(sum_across_t, (-1, -1, 1))
+
+        return all_p_i
 
     def intention_aggr(self):
 
