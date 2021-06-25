@@ -1,5 +1,4 @@
 """
-
 """
 import tensorflow as tf
 
@@ -20,13 +19,11 @@ class BiasLayer(tf.keras.layers.Layer):
 
 
 class DisentangledSeqEncoder(tf.keras.layers.Layer):
-    def __init__(self, is_input, num_intents, num_layers, max_len, d_model, num_heads, dff, input_vocab_size,
+    def __init__(self, num_intents, num_layers, max_len, d_model, num_heads, dff, input_vocab_size,
                  maximum_position_encoding, rate=0.1):
         super(DisentangledSeqEncoder, self).__init__()
 
         self.d_model = d_model
-
-        self.is_input = is_input
 
         self.sas_encoder = SASEncoder(num_layers, d_model, num_heads, dff, input_vocab_size,
                                       maximum_position_encoding, rate)
@@ -53,22 +50,22 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
         self.alphas = tf.transpose(self.alphas)
 
         self.beta_input_seq = [BiasLayer(d_model,
-                                        tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
-                                            tf.cast(d_model, tf.float32))))
+                                         tf.keras.initializers.RandomNormal(mean=0., stddev=1. / tf.math.sqrt(
+                                             tf.cast(d_model, tf.float32))))
                                for _ in range(num_intents)
                                ]
         self.beta_input_seq = tf.concat(self.beta_input_seq, 1)
         self.beta_input_seq = tf.transpose(self.beta_input_seq)
 
         self.beta_label_seq = [BiasLayer(d_model,
-                                        tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
-                                            tf.cast(d_model, tf.float32))))
+                                         tf.keras.initializers.RandomNormal(mean=0., stddev=1. / tf.math.sqrt(
+                                             tf.cast(d_model, tf.float32))))
                                for _ in range(num_intents)
                                ]
         self.beta_label_seq = tf.concat(self.beta_label_seq, 1)
         self.beta_label_seq = tf.transpose(self.beta_label_seq)
 
-    def call(self, x, training, mask):
+    def call(self, x, training, mask, is_input_seq):
 
         z = self.sas_encoder(x, training, mask)
 
@@ -77,7 +74,7 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
 
         attention_weights_p_i = self.intention_weighting(x)
 
-        encoded = self.intention_aggr(attention_weights_p_k_i, attention_weights_p_i, z)
+        encoded = self.intention_aggr(attention_weights_p_k_i, attention_weights_p_i, z, is_input_seq)
 
         return encoded  # (batch_size, input_seq_len, d_model)
 
@@ -91,9 +88,9 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
         """
         z = self.layernorm1(z)
         prototypes = self.layernorm2(self.prototypes)
-        prototypes_t = tf.tile(tf.expand_dims(prototypes,0), [tf.shape(z)[0], 1, 1])
+        prototypes_t = tf.tile(tf.expand_dims(prototypes, 0), [tf.shape(z)[0], 1, 1])
         cosine_similarity_mat = tf.matmul(z, prototypes_t, transpose_b=True) / tf.math.sqrt(
-                                  tf.cast(self.d_model, tf.float32))
+            tf.cast(self.d_model, tf.float32))
 
         exp = tf.math.exp(cosine_similarity_mat)
 
