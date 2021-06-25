@@ -200,7 +200,7 @@ class BiasLayer(tf.keras.layers.Layer):
 
 
 class DisentangledSeqEncoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size,
+    def __init__(self, num_intents, num_layers, max_len, d_model, num_heads, dff, input_vocab_size,
                  maximum_position_encoding, rate=0.1):
         super(DisentangledSeqEncoder, self).__init__()
 
@@ -208,6 +208,10 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
 
         self.sas_encoder = SASEncoder(num_layers, d_model, num_heads, dff, input_vocab_size,
                                       maximum_position_encoding, rate)
+
+        # prototypical intention vector for each intention
+        self.prototypes = [BiasLayer(d_model, 'zeros') for _ in range(num_intents)]
+
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -218,20 +222,23 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
 
         self.b = BiasLayer(d_model, 'zeros')
         self.b_ = BiasLayer(d_model, 'zeros')
-        self.alpha = BiasLayer(d_model, 'zeros')
+
+        # individual alpha for each position
+        self.alphas = [BiasLayer(d_model, 'zeros') for _ in range(max_len)]
 
         self.beta = BiasLayer(d_model,
                               tf.keras.initializers.RandomNormal(mean=0., stddev=1./tf.math.sqrt(
                                   tf.cast(d_model, tf.float32))))
 
-    def call(self, x, prototypes, training, mask):
+
+    def call(self, x, training, mask):
 
         out = self.sas_encoder(x, training, mask)
 
         # function to perform
-        attention_weights_p_k_i = self.intention_clustering(out, prototypes)
+        attention_weights_p_k_i = self.intention_clustering(out)
 
-        attention_weights_p_i = self.intention_weighting(x)
+        attention_weights_p_i = self.intention_weighting(out)
 
         seq_len = tf.shape(x)[1]
 
@@ -247,8 +254,7 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
 
         return x  # (batch_size, input_seq_len, d_model)
 
-
-    def intention_clustering(self, input, prototypes):
+    def intention_clustering(self, input):
         """
         Method to measure how likely the primary intention at position i
         is related with kth latent category
@@ -256,18 +262,32 @@ class DisentangledSeqEncoder(tf.keras.layers.Layer):
         :param prototypes:
         :return:
         """
-
         input = self.layernorm1(input)
-        prototypes = self.layernorm2(prototypes)
-        cosine_similarity = tf.matmul(input, prototypes, transpose_b=True) / tf.math.sqrt(
+        prototypes = self.layernorm2(self.prototypes)
+        prototypes_t = tf.tile(tf.expand_dims(prototypes,0), [tf.shape(input)[0],1,1])
+        cosine_similarity_mat = tf.matmul(input, prototypes_t, transpose_b=True) / tf.math.sqrt(
                                   tf.cast(self.d_model, tf.float32))
 
+        exp = tf.math.exp(cosine_similarity_mat)
+
+        sum_across_k = tf.reduce_sum(exp, axis=2)
+        all_p_k_i = exp / tf.reshape(sum_across_k, (-1, -1, 1))
+
+        return all_p_k_i
 
     def intention_weighting(self, input):
-        
+        """
+        Method to measure how likely primary intention at position i
+        is important for predicting user's future intentions
+        :param input:
+        :return:
+        """
+        out =
+        k_ = self.layernorm3(input)
+
+        return None
+
+
 
     def intention_aggr(self):
-        pass
-
-
 
