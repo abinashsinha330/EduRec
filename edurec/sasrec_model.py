@@ -129,7 +129,7 @@ class PointWiseFFN(tf.keras.layers.Layer):
 
 
 class SASEncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, d_model, num_heads, dff, rate=0.1):
+    def __init__(self, d_model, num_heads, rate=0.1):
         super(SASEncoderLayer, self).__init__()
 
         self.mha = MultiHeadAttention(d_model, num_heads)
@@ -154,7 +154,7 @@ class SASEncoderLayer(tf.keras.layers.Layer):
 
 
 class SASEncoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size,
+    def __init__(self, num_layers, d_model, num_heads, input_vocab_size,
                  maximum_position_encoding, rate=0.1):
         super(SASEncoder, self).__init__()
 
@@ -165,7 +165,7 @@ class SASEncoder(tf.keras.layers.Layer):
         self.pos_encoding = positional_encoding(maximum_position_encoding,
                                                 self.d_model)
 
-        self.enc_layers = [SASEncoderLayer(d_model, num_heads, dff, rate)
+        self.enc_layers = [SASEncoderLayer(d_model, num_heads, rate)
                            for _ in range(num_layers)]
 
         self.dropout = tf.keras.layers.Dropout(rate)
