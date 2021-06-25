@@ -19,13 +19,13 @@ class BiasLayer(tf.keras.layers.Layer):
 
 
 class DisentangledSeqEncoder(tf.keras.layers.Layer):
-    def __init__(self, num_intents, num_layers, max_len, d_model, num_heads, dff, input_vocab_size,
+    def __init__(self, num_intents, num_layers, max_len, d_model, num_heads, input_vocab_size,
                  maximum_position_encoding, rate=0.1):
         super(DisentangledSeqEncoder, self).__init__()
 
         self.d_model = d_model
 
-        self.sas_encoder = SASEncoder(num_layers, d_model, num_heads, dff, input_vocab_size,
+        self.sas_encoder = SASEncoder(num_layers, d_model, num_heads, input_vocab_size,
                                       maximum_position_encoding, rate)
 
         # prototypical intention vector for each intention
