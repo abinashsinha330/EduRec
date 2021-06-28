@@ -162,9 +162,9 @@ class SASEncoder(tf.keras.layers.Layer):
         self.num_layers = num_layers
 
         self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model, mask_zero=True,
-                                                   embeddings_regularizer={'l2': l2_emb})
+                                                   embeddings_regularizer=tf.keras.regularizers.l2(l2_emb))
         self.pos_embedding = tf.keras.layers.Embedding(max_len, d_model,
-                                                       embeddings_regularizer={'l2': l2_emb})
+                                                       embeddings_regularizer=tf.keras.regularizers.l2(l2_emb))
 
         self.enc_layers = [SASEncoderLayer(d_model, num_heads, rate)
                            for _ in range(num_layers)]
