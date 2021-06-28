@@ -155,15 +155,14 @@ class SASEncoderLayer(tf.keras.layers.Layer):
 
 class SASEncoder(tf.keras.layers.Layer):
     def __init__(self, num_layers, d_model, num_heads, input_vocab_size,
-                 maximum_position_encoding, rate=0.1):
+                 max_len, rate=0.1):
         super(SASEncoder, self).__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
 
         self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
-        self.pos_encoding = positional_encoding(maximum_position_encoding,
-                                                self.d_model)
+        self.pos_embedding = tf.keras.layers.Embedding(max_len, d_model)
 
         self.enc_layers = [SASEncoderLayer(d_model, num_heads, rate)
                            for _ in range(num_layers)]
@@ -176,7 +175,8 @@ class SASEncoder(tf.keras.layers.Layer):
         # adding embedding and position encoding.
         x = self.embedding(x)  # (batch_size, input_seq_len, d_model)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
-        x += self.pos_encoding[:, :seq_len, :]
+        x_pos = tf.tile(tf.expand_dims(tf.range(tf.shape(x)[1]), 0), [tf.shape(x)[0], 1])
+        x += self.pos_embedding(x_pos)
 
         x = self.dropout(x, training=training)
 
